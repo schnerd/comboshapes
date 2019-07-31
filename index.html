@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20041150-11"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+		gtag('config', 'UA-20041150-11');
+	</script>
+
+	<title>Combo Shapes</title>
+	<meta name="description" content="Play the online card game and find sets of matching pattern, color, shape, and number"/>
+	<meta name="keywords" content="game, card game, set, combinations"/>
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" media="screen" href="combo_shapes.css?f"/>
+</head>
+<body>
+	<canvas id="game-canvas"></canvas>
+	<div id="game-description">
+		Combo Shapes is a digital card game where you identify combinations of 3 cards which satisfy the rule:
+		Each property (pattern, color, shape, number) must be all the same or all different for your combination
+		of 3 cards.
+	</div>
+
+	<script src="dist.min.js?h"></script>
+</body>
+</html>
