@@ -25,7 +25,7 @@ $output = shell_exec("java -jar closure-compiler-v20190709.jar" .
 	" --jscomp_warning '*'" .
 	" --compilation_level ADVANCED_OPTIMIZATIONS" .
 	" --language_in=ECMASCRIPT6" .
-	" --language_out=ECMASCRIPT6" .
+//	" --language_out=ECMASCRIPT6" .
 	" --js_output_file dist.min.js dist.js 2>&1");
 
 var_dump($output);

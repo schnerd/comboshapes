@@ -28,6 +28,8 @@ function Game() {
 	const winMenu = new Menu(this, 'You Won!');
 
 	/** @type {Button!} */
+	let toggleMusicButton;
+	/** @type {Button!} */
 	let gameMenuCancelButton;
 	/** @type {Button!} */
 	let nextLevelButton;
@@ -42,6 +44,7 @@ function Game() {
 	let pauseInitTime;
 	/** @type {number} */
 	let pauseTotalTime = 0;
+	/** @type {boolean} */
 	let paused = false;
 	let frameCount = 0;
 	/** @type {number} */
@@ -57,6 +60,7 @@ function Game() {
 	/** @type {number} */
 	let pointsNeeded = 0;
 	let soundEnabled = true;
+	let musicEnabled = false;
 
 	const resizeCanvas = () => {
 		// use full screen if screen ratio is close enough to target ratio, aka phones in vertical mode
@@ -109,11 +113,13 @@ function Game() {
 	};
 
 	const pause = () => {
+		// use Date.now directly instead of currentFrameTime in case requestAnimationFrame is paused by browser
+		// (such as when the window is minimized or browser tab changed which could not count pause time correctly)
 		if (!paused) {
-			pauseInitTime = currentFrameTime;
+			pauseInitTime = Date.now();
 			paused = true;
 		} else {
-			pauseTotalTime += currentFrameTime - pauseInitTime;
+			pauseTotalTime += Date.now() - pauseInitTime;
 			paused = false;
 		}
 	};
@@ -190,6 +196,23 @@ function Game() {
 		musicGain.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + elapsed + 1);
 	};
 
+	const toggleMusic = () => {
+		if (musicEnabled) {
+			musicEnabled = false;
+			toggleMusicButton.text = 'Enable Music';
+			musicGain.gain.exponentialRampToValueAtTime(MUSIC_VOLUME, audioContext.currentTime);
+			musicGain.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.05);
+		} else {
+			musicEnabled = true;
+			toggleMusicButton.text = 'Disable Music';
+			if (musicGain) {
+				musicGain.gain.exponentialRampToValueAtTime(MUSIC_VOLUME, audioContext.currentTime + 0.05);
+			} else {
+				startMusic();
+			}
+		}
+	};
+
 	/**
 	 * @returns {boolean} whether the game was one after this successful set
 	 */
@@ -261,6 +284,33 @@ function Game() {
 		resizeCanvas();
 		window.addEventListener('resize', resizeCanvas);
 
+		// pause and disable music when tab is changed (doesn't work when entire browser window is defocused though)
+		/** @type {boolean} */
+		let windowBlurPaused = false;
+		/** @type {boolean} */
+		let windowBlurMusicDisabled = false;
+		document.addEventListener('visibilitychange', () => {
+			if (document.hidden) {
+				if (!paused) {
+					pause();
+					windowBlurPaused = true;
+				}
+				if (musicEnabled) {
+					toggleMusic();
+					windowBlurMusicDisabled = true;
+				}
+			} else {
+				if (paused && windowBlurPaused) {
+					pause();
+				}
+				if (!musicEnabled && windowBlurMusicDisabled) {
+					toggleMusic();
+				}
+				windowBlurPaused = false;
+				windowBlurMusicDisabled = false;
+			}
+		});
+
 		/**
 		 * @param {Event!} e
 		 */
@@ -310,24 +360,7 @@ function Game() {
 		};
 		gameMenu.addButton(new Button(this, 'Disable Sound Effects', handleSoundButtonClick));
 
-		/**
-		 * @param {Button!} button
-		 */
-		const handleMusicButtonClick = (button) => {
-			if (button.text === 'Disable Music') {
-				button.text = 'Enable Music';
-				musicGain.gain.exponentialRampToValueAtTime(MUSIC_VOLUME, audioContext.currentTime);
-				musicGain.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.05);
-			} else {
-				button.text = 'Disable Music';
-				if (musicGain) {
-					musicGain.gain.exponentialRampToValueAtTime(MUSIC_VOLUME, audioContext.currentTime + 0.05);
-				} else {
-					startMusic();
-				}
-			}
-		};
-		gameMenu.addButton(new Button(this, 'Enable Music', handleMusicButtonClick));
+		toggleMusicButton = gameMenu.addButton(new Button(this, 'Enable Music', toggleMusic));
 
 		/**
 		 * @param {Button!} button
