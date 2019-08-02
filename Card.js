@@ -1,3 +1,14 @@
+const basePerturbCoords = [
+	[0, 0],
+	[0, 0],
+	[0, 0],
+	[0, 0],
+	[0, 0],
+	[0, 0],
+	[0, 0],
+	[0, 0],
+];
+
 /**
  * @param {Game!} game
  * @constructor
@@ -18,6 +29,13 @@ function Card(game) {
 	this.animationPercent = 0;
 	/** @type {boolean} */
 	this.selected = false;
+	/** @type {Array<Array<number>!>!} */
+	this.perturbCoords = [];
+	if (this.shapeNum === 0) {
+		for (let i = 0; i < basePerturbCoords.length; i++) {
+			this.perturbCoords.push([0, 0]);
+		}
+	}
 }
 
 inherits(Card, GameObject);
@@ -75,6 +93,10 @@ Card.prototype.draw = function(context) {
 	context.fillStyle = '#fff';
 	fillRect(context, x, y, w, h, borderRadius);
 
+	if (this.shapeNum === 0) {
+		this.perturbCoords = perturbCoords(this.perturbCoords, basePerturbCoords, w * 0.01);
+	}
+
 	const shapeWidth = h * 0.22;
 	const shapeX = x + w / 2 - shapeWidth / 2;
 	if (this.countNum === 0) {
@@ -123,17 +145,25 @@ Card.prototype.drawShape = function(context, x, y, w, h) {
 	}
 	if (this.shapeNum === 0) {
 		// vibrating square
-		const coords = [
-			[x, y], [x + w * 0.25, y], [x + w * 0.5, y], [x + w * 0.75, y], [x + w, y],
-			[x + w, y + h * 0.25], [x + w, y + h * 0.5], [x + w, y + h * 0.75], [x + w, y + h],
-			[x + w * 0.75, y + h], [x + w * 0.5, y + h], [x + w * 0.25, y + h], [x, y + h],
-			[x, y + h * 0.75], [x, y + h * 0.5], [x, y + h * 0.25],
+		/** @type {Array<Array<number>!>!} */
+		let coords = [
+			[x, y],
+			[x + w * 0.5, y],
+			[x + w, y],
+			[x + w, y + h * 0.5],
+			[x + w, y + h],
+			[x + w * 0.5, y + h],
+			[x, y + h],
+			[x, y + h * 0.5],
 		];
+		for (let i = 0; i < this.perturbCoords.length; i++) {
+			coords[i][0] += this.perturbCoords[i][0];
+			coords[i][1] += this.perturbCoords[i][1];
+		}
 		context.beginPath();
-		const perturbRadius = w * 0.05;
-		moveToPerturbed(context, coords[0][0], coords[0][1], perturbRadius);
+		context.moveTo(coords[0][0], coords[0][1]);
 		for (let i = 1; i < coords.length; i++) {
-			lineToPerturbed(context, coords[i][0], coords[i][1], perturbRadius);
+			context.lineTo(coords[i][0], coords[i][1]);
 		}
 		context.closePath();
 		if (this.patternNum === 0) {

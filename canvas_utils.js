@@ -1,25 +1,17 @@
 /**
- * @param {CanvasRenderingContext2D!} context
- * @param {number} x
- * @param {number} y
+ * @param {Array<Array<number>!>!} coords
+ * @param {Array<Array<number>!>!} baseCoords
  * @param {number} perturbRadius
+ * @returns {Array<Array<number>!>!}
  */
-const moveToPerturbed = (context, x, y, perturbRadius) => {
-	x = x + Math.random() * perturbRadius * 2 - perturbRadius;
-	y = y + Math.random() * perturbRadius * 2 - perturbRadius;
-	context.moveTo(x, y);
-};
-
-/**
- * @param {CanvasRenderingContext2D!} context
- * @param {number} x
- * @param {number} y
- * @param {number} perturbRadius
- */
-const lineToPerturbed = (context, x, y, perturbRadius) => {
-	x = x + Math.random() * perturbRadius * 2 - perturbRadius;
-	y = y + Math.random() * perturbRadius * 2 - perturbRadius;
-	context.lineTo(x, y);
+const perturbCoords = (coords, baseCoords, perturbRadius) => {
+	for (let i = 0; i < coords.length; i++) {
+		coords[i][0] += Math.random() * perturbRadius / 2 * 2 - perturbRadius / 2;
+		coords[i][1] += Math.random() * perturbRadius / 2 * 2 - perturbRadius / 2;
+		coords[i][0] = Math.min(baseCoords[i][0] + perturbRadius, Math.max(baseCoords[i][0] - perturbRadius, coords[i][0]));
+		coords[i][1] = Math.min(baseCoords[i][1] + perturbRadius, Math.max(baseCoords[i][1] - perturbRadius, coords[i][1]));
+	}
+	return coords;
 };
 
 /**
