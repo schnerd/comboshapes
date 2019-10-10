@@ -83,11 +83,11 @@ Card.prototype.draw = function(context) {
 
 	const borderRadius = w / 20;
 	if (this.selected) {
-		context.fillStyle = '#ee0';
-		let borderWidth = w / 20;
+		context.fillStyle = '#90f';
+		let borderWidth = w / 15;
 		fillRect(context, x - borderWidth, y - borderWidth, w + borderWidth * 2, h + borderWidth * 2, borderRadius);
-		context.fillStyle = '#fa0';
-		borderWidth = this.animationPercent * w / 20;
+		context.fillStyle = '#f70';
+		borderWidth = this.animationPercent * w / 15;
 		fillRect(context, x - borderWidth, y - borderWidth, w + borderWidth * 2, h + borderWidth * 2, borderRadius);
 	}
 	context.fillStyle = '#fff';

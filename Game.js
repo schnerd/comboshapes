@@ -239,16 +239,14 @@ function Game() {
 		const panelHeight = canvas.height * 0.1;
 		const maxWidth = canvas.width;
 		const maxHeight = canvas.height - panelHeight;
-		let boardWidth;
-		let boardHeight;
-		if (maxWidth / maxHeight > BOARD_WIDTH_RATIO) {
-			boardHeight = maxHeight * 0.94;
-			boardWidth = boardHeight * BOARD_WIDTH_RATIO;
-		} else {
-			boardWidth = maxWidth * 0.94;
-			boardHeight = boardWidth / BOARD_WIDTH_RATIO;
-		}
-		board.draw(context, (canvas.width - boardWidth) / 2, (canvas.height - boardHeight + panelHeight) / 2, boardWidth, boardHeight);
+		const boardPadding = maxWidth * 0.03;
+		const boardWidth = maxWidth - boardPadding * 2;
+		const boardHeight = maxHeight - panelHeight;
+		board.draw(context, (canvas.width - boardWidth) / 2, (canvas.height - boardHeight - boardPadding), boardWidth, boardHeight);
+
+		const numValidSets = board.numValidSets();
+		const t = 'board contains ' + numValidSets + ' set' + (numValidSets === 1 ? '' : 's');
+		centerText(context, board.x + boardWidth / 2, panelHeight + maxHeight * 0.04, panelHeight * 0.2, 'arial', GRAY, t);
 
 		menuButton.draw(context, board.x, panelHeight * 0.25, boardWidth * 0.2, panelHeight * 0.5);
 

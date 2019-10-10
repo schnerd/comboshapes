@@ -11,6 +11,8 @@ function Board(game) {
 	this.cardHashes = {};
 	/** @type {Array<Card!>!} */
 	this.finishedCards = [];
+	/** @type {number} */
+	this._numValidSets = -1;
 }
 
 const NUM_CARDS = 16;
@@ -55,12 +57,25 @@ Board.prototype.populate = function(removeSelected) {
 			}
 		}
 	} while (!this.solvable());
+	this._numValidSets = -1;
 };
 
 /**
  * @returns {boolean}
  */
 Board.prototype.solvable = function() {
+	return this.numValidSets(true) > 0;
+};
+
+/**
+ * @param {boolean=} stopIfFound
+ * @returns {number}
+ */
+Board.prototype.numValidSets = function(stopIfFound) {
+	if (this._numValidSets !== -1) {
+		return this._numValidSets;
+	}
+	let n = 0;
 	for (let a = 0; a < this.cards.length; a++) {
 		for (let b = 0; b < this.cards.length; b++) {
 			if (b === a) {
@@ -71,12 +86,15 @@ Board.prototype.solvable = function() {
 					continue;
 				}
 				if (this.isValidSet(this.cards[a], this.cards[b], this.cards[c])) {
-					return true;
+					n++;
+					if (stopIfFound) {
+						return n;
+					}
 				}
 			}
 		}
 	}
-	return false;
+	return n / 6; // because there are 6 permutations for each set of 3 cards, order doesn't matter
 };
 
 /**
@@ -134,13 +152,13 @@ Board.prototype.draw = function(context, x, y, w, h) {
 	let cardWidth;
 	let cardHeight;
 	if (w / h > CARD_WIDTH_RATIO) {
-		cardHeight = h * 0.2;
+		cardHeight = h * 0.21;
 		cardWidth = cardHeight * CARD_WIDTH_RATIO;
 	} else {
-		cardWidth = w * 0.2;
+		cardWidth = w * 0.21;
 		cardHeight = cardWidth / CARD_WIDTH_RATIO;
 	}
-	const  cardPadding = (w - cardWidth * 4) / 2 / 3;
+	const cardPadding = (w - cardWidth * 4) / 2 / 3;
 	const xPadding = (w - cardWidth * 4 - cardPadding * 3) / 2;
 	const yPadding = (h - cardHeight * 4 - cardPadding * 3) / 2;
 

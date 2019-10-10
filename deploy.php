@@ -1,5 +1,16 @@
 <?php
 
+
+//<script src="object_utils.js?l"></script>
+//<script src="canvas_utils.js?l"></script>
+//<script src="GameObject.js?l"></script>
+//<script src="Game.js?l"></script>
+//<script src="Menu.js?l"></script>
+//<script src="Button.js?l"></script>
+//<script src="Board.js?l"></script>
+//<script src="Card.js?l"></script>
+//<script src="combo_shapes.js?l"></script>
+
 $files = [
 	'object_utils.js',
 	'canvas_utils.js',
@@ -28,12 +39,6 @@ $output = shell_exec("java -jar closure-compiler-v20190709.jar" .
 //	" --language_out=ECMASCRIPT6" .
 	" --js_output_file dist.min.js dist.js 2>&1");
 
-var_dump($output);
-
-$output = shell_exec("gzip --force --keep dist.min.js 2>&1");
-
-var_dump($output);
-
-$output = shell_exec("brotli --force --keep dist.min.js 2>&1");
+unlink('dist.js');
 
 var_dump($output);
