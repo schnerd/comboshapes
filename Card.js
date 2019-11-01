@@ -136,7 +136,7 @@ Card.prototype.drawShape = function(context, x, y, w, h) {
 		h -= context.lineWidth;
 	} else {
 		context.fillStyle = 'none';
-		context.lineWidth = w / 4;
+		context.lineWidth = w / 9;
 		context.strokeStyle = colors[this.colorNum];
 		x += context.lineWidth / 2;
 		y += context.lineWidth / 2;
@@ -160,16 +160,27 @@ Card.prototype.drawShape = function(context, x, y, w, h) {
 			coords[i][0] += this.perturbCoords[i][0];
 			coords[i][1] += this.perturbCoords[i][1];
 		}
-		context.beginPath();
-		context.moveTo(coords[0][0], coords[0][1]);
-		for (let i = 1; i < coords.length; i++) {
-			context.lineTo(coords[i][0], coords[i][1]);
+		let multiples = [1];
+		if (this.patternNum === 1) {
+			multiples = [1, 0.66, 0.33];
 		}
-		context.closePath();
-		if (this.patternNum === 0) {
-			context.fill();
-		} else {
-			context.stroke();
+		for (let j = 0; j < multiples.length; j++) {
+			context.beginPath();
+			// translate outer rectangle coords to origin, scale them down, then translate back
+			const coordX = ((coords[0][0] - (x + w / 2)) * multiples[j]) + (x + w / 2);
+			const coordY = ((coords[0][1] - (y + h / 2)) * multiples[j]) + (y + h / 2);
+			context.moveTo(coordX, coordY);
+			for (let i = 1; i < coords.length; i++) {
+				const coordX = ((coords[i][0] - (x + w / 2)) * multiples[j]) + (x + w / 2);
+				const coordY = ((coords[i][1] - (y + h / 2)) * multiples[j]) + (y + h / 2);
+				context.lineTo(coordX, coordY);
+			}
+			context.closePath();
+			if (this.patternNum === 0) {
+				context.fill();
+			} else {
+				context.stroke();
+			}
 		}
 	} else if (this.shapeNum === 1) {
 		// pulsating circle
@@ -178,20 +189,38 @@ Card.prototype.drawShape = function(context, x, y, w, h) {
 			fillCircle(context, x + w / 2, y + h / 2, radius);
 		} else {
 			strokeCircle(context, x + w / 2, y + h / 2, radius);
+			if (this.patternNum === 1) {
+				strokeCircle(context, x + w / 2, y + h / 2, radius * 0.66);
+				strokeCircle(context, x + w / 2, y + h / 2, radius * 0.33);
+			}
 		}
 	} else {
 		// tilting triangle
-		context.translate(x + w / 2, y + h / 2);
-		context.rotate(this.animationPercent * Math.PI / 8 - Math.PI / 16);
-		context.beginPath();
-		context.moveTo(0, -h / 2);
-		context.lineTo(w / 2, h / 2);
-		context.lineTo(-w / 2, h / 2);
-		context.closePath();
-		if (this.patternNum === 0) {
-			context.fill();
-		} else {
-			context.stroke();
+		const outerTriangleH = h * Math.sqrt(3) / 2;
+		let multiples = [1];
+		if (this.patternNum === 1) {
+			multiples = [1, 0.5, 0.04];
+		}
+		for (let i = 0; i < multiples.length; i++) {
+			const newW = w * multiples[i];
+			const newH = h * multiples[i];
+			const newX = x + (w - newW) / 2;
+			const newY = y + (h - newH) / 2;
+			const triangleH = newH * Math.sqrt(3) / 2; // equilateral triangle height
+			context.save();
+			context.translate(newX + newW / 2, newY + newH / 2 + outerTriangleH * 0.15);
+			context.rotate(this.animationPercent * Math.PI / 8 - Math.PI / 16);
+			context.beginPath();
+			context.moveTo(0, -triangleH * 0.65);
+			context.lineTo(newW / 2, triangleH * 0.35);
+			context.lineTo(-newW / 2, triangleH * 0.35);
+			context.closePath();
+			if (this.patternNum === 0) {
+				context.fill();
+			} else {
+				context.stroke();
+			}
+			context.restore();
 		}
 	}
 
