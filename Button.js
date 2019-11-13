@@ -12,7 +12,7 @@ function Button(game, text, callback) {
 	this.text = text;
 	this.callback = callback;
 	/** @type {string} */
-	this.fontColor = '#fff';
+	this.fontColor = WHITE;
 	/** @type {string} */
 	this.backgroundColor = '#539';
 }

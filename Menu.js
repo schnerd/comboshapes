@@ -55,7 +55,7 @@ Menu.prototype.draw = function(context, w, h) {
 
 	const textX = buttonX + buttonWidth / 2;
 	const textY = h / 2 - totalItemHeight / 2 + buttonHeight / 2;
-	centerText(context, textX, textY, buttonHeight * 0.66, 'helvetica,arial', '#fff', this.title);
+	centerText(context, textX, textY, buttonHeight * 0.66, 'helvetica,arial', WHITE, this.title);
 
 	for (let i = 0; i < this.buttons.length; i++) {
 		const buttonY = h / 2 - totalItemHeight / 2 + (i + 1) * (buttonHeight + buttonPadding);

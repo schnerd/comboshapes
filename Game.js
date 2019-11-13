@@ -1,3 +1,8 @@
+
+const PURPLE = '#9855ff';
+const WHITE = '#fff';
+const GRAY = '#554f4f';
+
 /**
  * @constructor
  */
@@ -15,9 +20,11 @@ function Game() {
 	/** @type {GainNode!} */
 	let musicGain;
 
-	const PURPLE = '#539';
-	const WHITE = '#fff';
-	const GRAY = '#988';
+	const DIFFICULTY_COLORS = {
+		'easy': '#4b4',
+		'medium': '#aa0',
+		'hard': '#f44',
+	};
 	const SECONDS_PER_LEVEL = 90;
 	const CANVAS_WIDTH_RATIO = 5 / 8;
 	const MUSIC_VOLUME = 0.2;
@@ -228,6 +235,20 @@ function Game() {
 		return false;
 	};
 
+	/**
+	 * @returns {string}
+	 */
+	this.getTargetDifficulty = () => {
+		const progress = (successCount - failureCount) / pointsNeeded;
+		if (progress >= 2/3) {
+			return 'hard';
+		}
+		if (progress >= 1/3) {
+			return 'medium';
+		}
+		return 'easy';
+	};
+
 	this.addFailure = () => {
 		failureCount++;
 		playSounds([900, 600, 400], 0.5, 0.1);
@@ -245,8 +266,11 @@ function Game() {
 		board.draw(context, (canvas.width - boardWidth) / 2, (canvas.height - boardHeight - boardPadding), boardWidth, boardHeight);
 
 		const numValidSets = board.numValidSets();
-		const t = 'board contains ' + numValidSets + ' set' + (numValidSets === 1 ? '' : 's');
-		centerText(context, board.x + boardWidth / 2, panelHeight + maxHeight * 0.04, panelHeight * 0.2, 'arial', GRAY, t);
+		const difficulty = board.getActualDifficulty();
+		const color = DIFFICULTY_COLORS[difficulty];
+		let t = 'board contains ' + numValidSets + ' set' + (numValidSets === 1 ? '' : 's') + ' (' + difficulty.toUpperCase() + ')';
+		fillRect(context, board.x + boardWidth * 0.2, panelHeight + maxHeight * 0.023, boardWidth * 0.6, maxHeight * 0.05, panelHeight * 0.07);
+		centerText(context, board.x + boardWidth / 2, panelHeight + maxHeight * 0.05, panelHeight * 0.2, 'arial', color, t);
 
 		menuButton.draw(context, board.x, panelHeight * 0.25, boardWidth * 0.2, panelHeight * 0.5);
 

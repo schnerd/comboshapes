@@ -16,6 +16,9 @@ function Board(game) {
 }
 
 const NUM_CARDS = 16;
+// percentiles for number of valid sets per board: [1, 5, 5, 6, 7, 7, 8, 8, 9, 10, 15] (0th ... 100th)
+const MIN_SETS_EASY = 9; // ~70th percentile
+const MAX_SETS_HARD = 5; // ~30th percentile
 
 inherits(Board, GameObject);
 
@@ -32,6 +35,17 @@ Board.prototype.clear = function() {
  * @param {boolean=} removeSelected
  */
 Board.prototype.populate = function(removeSelected) {
+	let minSets = 1;
+	let maxSets = Infinity;
+	const difficulty = this.game.getTargetDifficulty();
+	if (difficulty === 'hard') {
+		maxSets = MAX_SETS_HARD;
+	} else if (difficulty === 'medium') {
+		minSets = MAX_SETS_HARD + 1;
+		maxSets = MIN_SETS_EASY - 1;
+	} else {
+		minSets = MIN_SETS_EASY;
+	}
 	/** @type {Array<number>!} */
 	let indexes = [];
 	for (let i = 0; i < NUM_CARDS; i++) {
@@ -39,6 +53,8 @@ Board.prototype.populate = function(removeSelected) {
 			indexes.push(i);
 		}
 	}
+	let numSets;
+	let tries = 0;
 	do {
 		for (let i = 0; i < indexes.length; i++) {
 			const index = indexes[i];
@@ -56,8 +72,11 @@ Board.prototype.populate = function(removeSelected) {
 				}
 			}
 		}
-	} while (!this.solvable());
-	this._numValidSets = -1;
+		this._numValidSets = -1;
+		numSets = this.numValidSets();
+		tries++;
+		// it may be impossible to satisfy maxSets if board already has more than the max, so only try 10 times
+	} while ((numSets < minSets || numSets > maxSets) && tries < 10);
 };
 
 /**
@@ -65,6 +84,20 @@ Board.prototype.populate = function(removeSelected) {
  */
 Board.prototype.solvable = function() {
 	return this.numValidSets(true) > 0;
+};
+
+/**
+ * @returns {string}
+ */
+Board.prototype.getActualDifficulty = function() {
+	const numSets = this.numValidSets();
+	if (numSets <= MAX_SETS_HARD) {
+		return 'hard';
+	}
+	if (numSets < MIN_SETS_EASY) {
+		return 'medium';
+	}
+	return 'easy';
 };
 
 /**
@@ -140,7 +173,7 @@ Board.prototype.isValidSet = function(cardA, cardB, cardC) {
  */
 Board.prototype.draw = function(context, x, y, w, h) {
 	this.setCoords(x, y, w, h);
-	context.fillStyle = '#988';
+	context.fillStyle = GRAY;
 	fillRect(context, x, y, w, h, 10);
 
 	const dotRadius = w / 20;
