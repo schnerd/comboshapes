@@ -249,3 +249,47 @@ Board.prototype.click = function(x, y) {
 		game.playSound(800, 1);
 	}
 };
+
+Board.prototype.serialize = function() {
+	return {
+		cards: this.cards.map(card => card.serialize()),
+	};
+};
+
+Board.prototype.load = function(serialized) {
+	// We want to keep the same card instance when possible to preserve animations
+	const existingCards = {};
+	this.cards.forEach(card => {
+		existingCards[card.uniqueHash()] = card;
+	});
+
+	const cardConfigs = serialized.cards;
+
+	const newCards = [];
+	for (let i = 0; i < cardConfigs.length; i++) {
+		const card = new Card(game);
+		card.load(cardConfigs[i]);
+		const hash = card.uniqueHash();
+		const existing = existingCards[hash];
+		if (existing) {
+			delete existingCards[hash];
+			newCards.push(existing);
+		} else {
+			newCards.push(card);
+		}
+	}
+
+	this.cards = newCards;
+	this.cardHashes = {};
+	for (let i = 0; i < this.cards.length; i++) {
+		const card = this.cards[i];
+		this.cardHashes[card.uniqueHash()] = true;
+	}
+
+	// Any remaining cards in existingCards should be spun away
+	// (cleared by another user)
+	this.finishedCards = Object.values(existingCards);
+	this.finishedCards.forEach((card) => {
+		card.spinAway();
+	});
+};

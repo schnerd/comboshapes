@@ -18,29 +18,46 @@ function Card(game) {
 	GameObject.call(this, game);
 
 	/** @type {number} */
-	this.colorNum = Math.random() * 3 >> 0;
+	this.colorNum = 0;
 	/** @type {number} */
-	this.shapeNum = Math.random() * 3 >> 0;
+	this.shapeNum = 0;
 	/** @type {number} */
-	this.patternNum = Math.random() * 3 >> 0;
+	this.patternNum = 0;
 	/** @type {number} */
-	this.countNum = Math.random() * 3 >> 0;
+	this.countNum = 0;
 	/** @type {number} */
 	this.animationPercent = 0;
 	/** @type {boolean} */
 	this.selected = false;
 	/** @type {Array<Array<number>!>!} */
 	this.perturbCoords = [];
-	if (this.shapeNum === 0) {
-		for (let i = 0; i < basePerturbCoords.length; i++) {
-			this.perturbCoords.push([0, 0]);
-		}
-	}
+
+	// Use setter to ensure perterbCoords is updated consistently
+	this.setCardConfig({
+		colorNum: Math.random() * 3 >> 0,
+		shapeNum: Math.random() * 3 >> 0,
+		patternNum: Math.random() * 3 >> 0,
+		countNum: Math.random() * 3 >> 0,
+	});
 }
 
 inherits(Card, GameObject);
 
 const colors = ['#90f', '#f70', '#07f'];
+
+Card.prototype.setCardConfig = function(config) {
+	this.colorNum = config.colorNum;
+	this.shapeNum = config.shapeNum;
+	this.patternNum = config.patternNum;
+	this.countNum = config.countNum;
+
+	this.perturbCoords = [];
+	if (this.shapeNum === 0) {
+		for (let i = 0; i < basePerturbCoords.length; i++) {
+			this.perturbCoords.push([0, 0]);
+		}
+	}
+};
 
 /**
  * @returns {string}
@@ -238,4 +255,18 @@ Card.prototype.click = function(x, y) {
 		return true;
 	}
 	return false;
+};
+
+
+Card.prototype.serialize = function() {
+	return [this.colorNum, this.shapeNum, this.patternNum, this.countNum];
+};
+
+Card.prototype.load = function(serialized) {
+	this.setCardConfig({
+		colorNum: serialized[0],
+		shapeNum: serialized[1],
+		patternNum: serialized[2],
+		countNum: serialized[3],
+	});
 };

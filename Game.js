@@ -33,6 +33,7 @@ function Game() {
 	const gameMenu = new Menu(this, '');
 	const loseMenu = new Menu(this, 'You Lose.');
 	const winMenu = new Menu(this, 'You Won!');
+	const groupMenu = new Menu(this, '');
 
 	/** @type {Button!} */
 	let toggleMusicButton;
@@ -68,6 +69,12 @@ function Game() {
 	let pointsNeeded = 0;
 	let soundEnabled = true;
 	let musicEnabled = false;
+
+	this.isGroup = false;
+	this.isGroupHost = false;
+	let hostPeer;
+	let clients = [];
+	let clientPeer;
 
 	const resizeCanvas = () => {
 		// use full screen if screen ratio is close enough to target ratio, aka phones in vertical mode
@@ -298,13 +305,46 @@ function Game() {
 		fillRect(context, barX, barY, barWidth * percent, barHeight, barHeight / 2);
 
 		gameMenu.draw(context, canvas.width, canvas.height);
+		groupMenu.draw(context, canvas.width, canvas.height);
 		loseMenu.draw(context, canvas.width, canvas.height);
 		winMenu.draw(context, canvas.width, canvas.height);
+	};
+
+	const serializeGameState = () => {
+		return {
+			type: 'state',
+			level,
+			pointsNeeded,
+			levelStartTime,
+			successCount,
+			failureCount,
+			board: board.serialize()
+		}
+	};
+
+	const broadcastGameState = () => {
+		const state = serializeGameState();
+		clients.forEach((conn) => {
+			conn.send(conn, state);
+		});
+	};
+
+	const loadGameState = (serialized) => {
+		level = serialized.level;
+		pointsNeeded = serialized.pointsNeeded;
+		levelStartTime = serialized.levelStartTime;
+		successCount = serialized.successCount;
+		failureCount = serialized.failureCount;
+		board.load(serialized.board);
 	};
 
 	const init = () => {
 		resizeCanvas();
 		window.addEventListener('resize', resizeCanvas);
+
+		const query = window.location.search || '';
+		const roomMatch = /room=(\w+)/.exec(query);
+		const room = roomMatch ? roomMatch[1] : null;
 
 		// pause and disable music when tab is changed (doesn't work when entire browser window is defocused though)
 		/** @type {boolean} */
@@ -361,10 +401,70 @@ function Game() {
 		});
 		menuButton.setColors(WHITE, GRAY);
 
-		gameMenu.addButton(new Button(this, 'New Game', () => {
+		gameMenu.addButton(new Button(this, 'New Solo Game', () => {
 			startNewGame();
 			gameMenu.hide();
 			playStartSound();
+			// Just for testing (TODO delete me)
+			// board.clear();
+			// const state = {"type":"state","level":1,"pointsNeeded":1,"levelStartTime":1588278087467,"successCount":0,"failureCount":0,"board":{"cards":[[2,1,0,1],[1,2,1,0],[1,0,2,2],[1,2,1,2],[1,0,0,0],[2,2,1,0],[2,1,2,0],[1,2,2,1],[2,2,0,1],[0,2,0,0],[0,0,2,1],[2,2,1,1],[0,1,1,2],[1,1,0,1],[1,0,2,0],[1,0,1,1]]}};
+			// state.levelStartTime = Date.now();
+			// loadGameState(state);
+			// update();
+			// this.draw();
+		}));
+
+		gameMenu.addButton(new Button(this, 'New Group Game', (button) => {
+			button.text = 'Creating room...';
+
+			hostPeer = new Peer();
+
+			hostPeer.on('open', function(id) {
+				history.replaceState(null, 'Group Game', "?room=" + id)
+				startNewGame();
+				gameMenu.hide();
+				playStartSound();
+				broadcastGameState();
+			});
+
+			hostPeer.on('connection', function(conn) {
+				console.log('Received connection from peer ' + conn.peer);
+
+				conn.on('data', function(data) {
+					console.log('Received from client', data);
+				});
+			
+				conn.on('open', () => {
+					clients.push(conn);
+					conn.send('Hello, I am host open');
+					conn.send(serializeGameState());
+				});
+
+				conn.on('close', () => {
+					clients = clients.filter(clientConn => clientConn.peer === conn.peer);
+					console.log('Peer ' + conn.peer + ' disconnected.');
+				});
+
+				conn.on('error', (err) => {
+					console.error('Peer ' + conn.peer + ' had error', err);
+				});
+			});
+
+			hostPeer.on('disconnected', function() {
+				/**
+				 * Emitted when the peer is disconnected from the signalling server, either 
+				 * manually or because the connection to the signalling server was lost. 
+				 * When a peer is disconnected, its existing connections will stay alive, 
+				 * but the peer cannot accept or create any new connections. You can reconnect 
+				 * to the server by calling peer.reconnect() .
+				 */
+				console.log('Host peer disconnected');
+			});
+
+			hostPeer.on('error', (err) => {
+				console.error('Host peer error', err);
+			});
+
 		}));
 
 		/**
@@ -406,18 +506,57 @@ function Game() {
 			startNewGame();
 			loseMenu.hide();
 			playStartSound();
+			if (hostPeer) {
+				broadcastGameState();
+			}
 		}));
 
 		nextLevelButton = winMenu.addButton(new Button(this, 'Start Next Level', () => {
 			winMenu.hide();
 			startNextLevel();
+			if (hostPeer) {
+				broadcastGameState();
+			}
 		}));
 
 		tick();
 
 		gameMenuCancelButton.hide();
 		gameMenu.setTitle('Combo Shapes');
-		gameMenu.show();
+
+		groupMenu.setTitle('Joining room...');
+
+		if (room) {
+			let isFirstSync = true;
+			groupMenu.show();
+			clientPeer = new Peer();
+			clientPeer.on('open', id => {
+				conn = clientPeer.connect(room);
+				conn.on('open', () => {
+					// Send messages
+					conn.send('Hello, I am client peer ' + id);
+				});
+				// Receive messages
+				conn.on('data', data => {
+					console.log('Received from host', data);
+					if (data.type === 'state') {
+						if (isFirstSync) {
+							startNewGame();
+							gameMenu.hide();
+							playStartSound();
+							board.clear();
+						}
+						isFirstSync = false;
+
+						loadGameState(data);
+						update();
+						this.draw();
+					}
+				});
+			});
+		} else {
+			gameMenu.show();
+		}
 	};
 
 	const playStartSound = () => {
