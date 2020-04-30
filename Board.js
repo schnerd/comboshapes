@@ -203,7 +203,12 @@ Board.prototype.draw = function(context, x, y, w, h) {
 	}
 
 	for (let i = this.finishedCards.length - 1; i >= 0; i--) {
-		this.finishedCards[i].updateMotion();
+		const card = this.finishedCards[i];
+		if (card.w === 0) {
+			// Card was never drawn to begin with
+			continue;
+		}
+		card.updateMotion();
 		this.finishedCards[i].draw(context);
 		if (!this.overlaps(this.finishedCards[i])) {
 			this.finishedCards.splice(i, 1);
