@@ -29,6 +29,8 @@ function Card(game) {
 	this.animationPercent = 0;
 	/** @type {boolean} */
 	this.selected = false;
+	/** @type {boolean} */
+	this.accepted = false;
 	/** @type {Array<Array<number>!>!} */
 	this.perturbCoords = [];
 

@@ -75,6 +75,7 @@ function Game() {
 	let hostPeer;
 	let clients = [];
 	let clientPeer;
+	let clientConn;
 
 	const resizeCanvas = () => {
 		// use full screen if screen ratio is close enough to target ratio, aka phones in vertical mode
@@ -133,7 +134,12 @@ function Game() {
 			pauseInitTime = Date.now();
 			paused = true;
 		} else {
-			pauseTotalTime += Date.now() - pauseInitTime;
+			if (this.isGroup) {
+				// Ignore pause time in group games
+				pauseTotalTime = 0;
+			} else {
+				pauseTotalTime += Date.now() - pauseInitTime;
+			}
 			paused = false;
 		}
 	};
@@ -227,15 +233,31 @@ function Game() {
 		}
 	};
 
-	/**
-	 * @returns {boolean} whether the game was one after this successful set
-	 */
 	this.addSuccess = () => {
 		successCount++;
+		this.playSuccessSound();
+	};
+
+	this.playSuccessSound = () => {
 		playSounds([800, 1200, 1600], 0.5, 0.1);
+	};
+
+	/**
+	 * @returns {boolean} whether the game was won after this successful set
+	 */
+	this.checkWin = () => {
 		if (successCount - failureCount >= pointsNeeded) {
 			pause();
-			nextLevelButton.text = 'Start Level ' + (level + 1);
+
+			if (this.isGroup) {
+				if (this.isGroupHost) {
+					nextLevelButton.text = 'Start Level ' + (level + 1);
+					nextLevelButton.show();
+				} else {
+					nextLevelButton.hide();
+				}
+			}
+
 			winMenu.show();
 			return true;
 		}
@@ -258,6 +280,10 @@ function Game() {
 
 	this.addFailure = () => {
 		failureCount++;
+		this.playFailureSound();
+	};
+
+	this.playFailureSound = () => {
 		playSounds([900, 600, 400], 0.5, 0.1);
 	};
 
@@ -322,11 +348,21 @@ function Game() {
 		}
 	};
 
-	const broadcastGameState = () => {
+	this.broadcastGameState = () => {
 		const state = serializeGameState();
 		clients.forEach((conn) => {
-			conn.send(conn, state);
+			conn.send(state);
 		});
+	};
+
+	this.reportSuccess = (set) => {
+		console.debug('Sent success to host');
+		clientConn.send({type: 'success', set});
+	};
+
+	this.reportFailure = () => {
+		console.debug('Sent failure to host');
+		clientConn.send({type: 'failure'});
 	};
 
 	const loadGameState = (serialized) => {
@@ -402,47 +438,78 @@ function Game() {
 		menuButton.setColors(WHITE, GRAY);
 
 		gameMenu.addButton(new Button(this, 'New Solo Game', () => {
+			this.isGroup = false;
+			this.isGroupHost = false;
 			startNewGame();
 			gameMenu.hide();
-			playStartSound();
 			// Just for testing (TODO delete me)
 			// board.clear();
 			// const state = {"type":"state","level":1,"pointsNeeded":1,"levelStartTime":1588278087467,"successCount":0,"failureCount":0,"board":{"cards":[[2,1,0,1],[1,2,1,0],[1,0,2,2],[1,2,1,2],[1,0,0,0],[2,2,1,0],[2,1,2,0],[1,2,2,1],[2,2,0,1],[0,2,0,0],[0,0,2,1],[2,2,1,1],[0,1,1,2],[1,1,0,1],[1,0,2,0],[1,0,1,1]]}};
 			// state.levelStartTime = Date.now();
 			// loadGameState(state);
-			// update();
-			// this.draw();
 		}));
 
 		gameMenu.addButton(new Button(this, 'New Group Game', (button) => {
 			button.text = 'Creating room...';
-
+			this.isGroup = true;
+			this.isGroupHost = true;
 			hostPeer = new Peer();
 
-			hostPeer.on('open', function(id) {
+			hostPeer.on('open', id => {
 				history.replaceState(null, 'Group Game', "?room=" + id)
 				startNewGame();
 				gameMenu.hide();
-				playStartSound();
-				broadcastGameState();
+				this.broadcastGameState();
 			});
 
-			hostPeer.on('connection', function(conn) {
+			hostPeer.on('connection', conn => {
 				console.log('Received connection from peer ' + conn.peer);
 
-				conn.on('data', function(data) {
-					console.log('Received from client', data);
+				conn.on('data', data => {
+					if (data.type === 'failure') {
+						// Count the failure from our client
+						this.addFailure();
+						// Broadcast the game state back to all clients
+						this.broadcastGameState();
+					} else if (data.type === 'success') {
+						const set = data.set;
+						// First we need to get the cards from the hashes, then validate that it's still a set
+						const cardsByHash = {};
+						board.cards.forEach(card => {
+							cardsByHash[card.uniqueHash()] = card;
+						});
+						const setCards = [];
+						set.forEach(hash => {
+							const card = cardsByHash[hash];
+							if (card) {
+								setCards.push(card);
+							}
+						});
+						// Still a set on the board we see? If so, count it.
+						if (setCards.length === 3 && board.isValidSet(setCards[0], setCards[1], setCards[2])) {
+							board.acceptClientSet(setCards);
+							this.addSuccess();
+							const won = this.checkWin();
+							if (won) {
+								board.clear();
+							}
+						}
+						// Broadcast the game state back to all clients
+						this.broadcastGameState();
+					}
+					console.debug('Received from client', data);
 				});
 			
 				conn.on('open', () => {
 					clients.push(conn);
+					console.debug('Peer ' + conn.peer + ' opened connection to host.');
 					conn.send('Hello, I am host open');
 					conn.send(serializeGameState());
 				});
 
 				conn.on('close', () => {
 					clients = clients.filter(clientConn => clientConn.peer === conn.peer);
-					console.log('Peer ' + conn.peer + ' disconnected.');
+					console.debug('Peer ' + conn.peer + ' closed connection to host.');
 				});
 
 				conn.on('error', (err) => {
@@ -458,7 +525,7 @@ function Game() {
 				 * but the peer cannot accept or create any new connections. You can reconnect 
 				 * to the server by calling peer.reconnect() .
 				 */
-				console.log('Host peer disconnected');
+				console.debug('Host peer disconnected');
 			});
 
 			hostPeer.on('error', (err) => {
@@ -506,16 +573,16 @@ function Game() {
 			startNewGame();
 			loseMenu.hide();
 			playStartSound();
-			if (hostPeer) {
-				broadcastGameState();
+			if (this.isGroupHost) {
+				this.broadcastGameState();
 			}
 		}));
 
 		nextLevelButton = winMenu.addButton(new Button(this, 'Start Next Level', () => {
 			winMenu.hide();
 			startNextLevel();
-			if (hostPeer) {
-				broadcastGameState();
+			if (this.isGroupHost) {
+				this.broadcastGameState();
 			}
 		}));
 
@@ -527,17 +594,19 @@ function Game() {
 		groupMenu.setTitle('Joining room...');
 
 		if (room) {
+			this.isGroup = true;
+			this.isGroupHost = false;
 			let isFirstSync = true;
 			groupMenu.show();
 			clientPeer = new Peer();
 			clientPeer.on('open', id => {
-				conn = clientPeer.connect(room);
-				conn.on('open', () => {
+				clientConn = clientPeer.connect(room);
+				clientConn.on('open', () => {
 					// Send messages
-					conn.send('Hello, I am client peer ' + id);
+					clientConn.send('Hello, I am client peer ' + id);
 				});
 				// Receive messages
-				conn.on('data', data => {
+				clientConn.on('data', data => {
 					console.log('Received from host', data);
 					if (data.type === 'state') {
 						if (isFirstSync) {
@@ -545,12 +614,36 @@ function Game() {
 							gameMenu.hide();
 							playStartSound();
 							board.clear();
+							groupMenu.hide();
 						}
 						isFirstSync = false;
 
+						if (data.failureCount > failureCount) {
+							this.playFailureSound();
+						}
+						if (data.successCount > successCount) {
+							this.playSuccessSound();
+						}
+						// Test for new level/game
+						if (data.levelStartTime !== levelStartTime) {
+							loseMenu.hide();
+							winMenu.hide();
+							paused = false;
+							playStartSound();
+						} else {
+							// Test for rejected success (someone got it first)
+							if (data.successCount < successCount) {
+								this.playFailureSound();
+							}
+						}
+
 						loadGameState(data);
-						update();
-						this.draw();
+
+						// Check if game is now in a win state
+						const won = this.checkWin();
+						if (won) {
+							board.clear();
+						}
 					}
 				});
 			});
@@ -573,6 +666,7 @@ function Game() {
 		pointsNeeded = level;
 		board.clear();
 		board.populate();
+		playStartSound();
 	};
 
 	const startNewGame = () => {

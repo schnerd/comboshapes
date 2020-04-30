@@ -32,9 +32,9 @@ Board.prototype.clear = function() {
 };
 
 /**
- * @param {boolean=} removeSelected
+ * @param {boolean=} removeAccepted
  */
-Board.prototype.populate = function(removeSelected) {
+Board.prototype.populate = function(removeAccepted) {
 	let minSets = 1;
 	let maxSets = Infinity;
 	const difficulty = this.game.getTargetDifficulty();
@@ -47,17 +47,17 @@ Board.prototype.populate = function(removeSelected) {
 		minSets = MIN_SETS_EASY;
 	}
 	/** @type {Array<number>!} */
-	let indexes = [];
+	let cardIndexesToFill = [];
 	for (let i = 0; i < NUM_CARDS; i++) {
-		if (!this.cards[i] || (removeSelected && this.cards[i].selected)) {
-			indexes.push(i);
+		if (!this.cards[i] || (removeAccepted && this.cards[i].accepted)) {
+			cardIndexesToFill.push(i);
 		}
 	}
 	let numSets;
 	let tries = 0;
 	do {
-		for (let i = 0; i < indexes.length; i++) {
-			const index = indexes[i];
+		for (let i = 0; i < cardIndexesToFill.length; i++) {
+			const index = cardIndexesToFill[i];
 			if (this.cards[index]) {
 				this.cardHashes[this.cards[index].uniqueHash()] = false;
 			}
@@ -229,25 +229,70 @@ Board.prototype.click = function(x, y) {
 	}
 	if (selected.length === 3) {
 		if (this.isValidSet(selected[0], selected[1], selected[2])) {
-			const won = game.addSuccess();
-			if (won) {
-				this.clear();
-			} else {
-				for (let i = 0; i < selected.length; i++) {
-					selected[i].spinAway();
-				}
-				this.finishedCards = selected;
-				this.populate(true);
+			selected.forEach(card => {
+				card.accepted = true;
+			});
+
+			game.addSuccess();
+			const won = game.checkWin();
+
+			for (let i = 0; i < selected.length; i++) {
+				selected[i].spinAway();
 			}
+			this.finishedCards = selected;
+
+			if (game.isGroup) {
+				if (game.isGroupHost) {
+					if (won) {
+						this.clear();
+					} else {
+						this.populate(true);
+					}
+					// If we are the group host, broadcast the post-success state
+					game.broadcastGameState();
+				} else {
+					// If we are a group client, get it validated by the host first
+					game.reportSuccess(selected.map(card => card.uniqueHash()));
+				}
+			}
+
+			if (!game.isGroup || game.isGroupHost) {
+				if (won) {
+					this.clear();
+				} else {
+					this.populate(true);
+				}
+			}
+
 		} else {
 			for (let i = 0; i < selected.length; i++) {
 				selected[i].selected = false;
 			}
+
 			game.addFailure();
+
+			if (game.isGroup) {
+				if (game.isGroupHost) {
+					// If we are the group host, broadcast our failure to everyone else
+					game.broadcastGameState();
+				} else {
+					// If we are a group client, report our failure to the host
+					game.reportFailure();
+				}
+			}
 		}
 	} else if (cardChanged) {
 		game.playSound(800, 1);
 	}
+};
+
+Board.prototype.acceptClientSet = function(set) {
+	for (let i = 0; i < set.length; i++) {
+		set[i].accepted = true;
+		set[i].spinAway();
+	}
+	this.finishedCards = set;
+	this.populate(true);
 };
 
 Board.prototype.serialize = function() {
