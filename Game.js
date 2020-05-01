@@ -76,6 +76,8 @@ function Game() {
 	let clients = [];
 	let clientPeer;
 	let clientConn;
+	let players = {};
+	let groupLog = [];
 
 	const resizeCanvas = () => {
 		// use full screen if screen ratio is close enough to target ratio, aka phones in vertical mode
@@ -287,6 +289,24 @@ function Game() {
 		playSounds([900, 600, 400], 0.5, 0.1);
 	};
 
+	this.incrementHostFailure = () => {
+		const player = players[hostPeer.id];
+		if (player) {
+			player.failure++;
+		}
+		this.broadcastLog(player.name + ' messed up');
+		this.drawGroupPanel();
+	};
+
+	this.incrementHostSuccess = () => {
+		const player = players[hostPeer.id];
+		if (player) {
+			player.success++;
+		}
+		this.broadcastLog(player.name + ' found a set');
+		this.drawGroupPanel();
+	};
+
 	this.draw = () => {
 		drawBackground();
 
@@ -336,6 +356,37 @@ function Game() {
 		winMenu.draw(context, canvas.width, canvas.height);
 	};
 
+	const $groupPanel = document.getElementById('group-panel');
+	this.drawGroupPanel = () => {
+		$groupPanel.style.display = 'block';
+
+		const sorted = Object.values(players).sort((a, b) => {
+			return (b.success - b.failure) - (a.success - a.failure);
+		});
+		const html = `
+		<div class="group-scores">
+			<h2>Scores</h2>
+			${sorted.map(player => {
+				return `
+				<div class="group-player">
+					<div class="group-player-name">${player.name}</div>
+					<div class="group-player-success">${player.success}</div>
+					<div class="group-player-failure">${player.failure}</div>
+				</div>
+				`;
+			}).join('')}
+		</div>
+		<div class="group-logs">
+			${groupLog.map(log => `<div class="group-log">${log}</div>`).reverse().join('')}
+		</div>
+		`;
+
+		$groupPanel.innerHTML = html;
+	};
+	this.hideGroupPanel = () => {
+		$groupPanel.style.display = 'none';
+	};
+
 	const serializeGameState = () => {
 		return {
 			type: 'state',
@@ -344,14 +395,30 @@ function Game() {
 			levelStartTime,
 			successCount,
 			failureCount,
+			players,
 			board: board.serialize()
 		}
 	};
 
+	/**
+	 * Allows host to broadcast current game state to all clients
+	 */
 	this.broadcastGameState = () => {
 		const state = serializeGameState();
 		clients.forEach((conn) => {
 			conn.send(state);
+		});
+	};
+
+	/**
+	 * Allows host to broadcast a game log entry to all clients
+	 */
+	this.broadcastLog = (msg) => {
+		// Append for the host to see
+		this.appendGroupLog(msg);
+		// Then send to all clients
+		clients.forEach((conn) => {
+			conn.send({type: 'log', msg: msg});
 		});
 	};
 
@@ -365,12 +432,28 @@ function Game() {
 		clientConn.send({type: 'failure'});
 	};
 
+	this.resetGroupScores = () => {
+		Object.values(players).forEach(player => {
+			player.success = 0;
+			player.failure = 0;
+		});
+	};
+
+	this.appendGroupLog = (msg) => {
+		groupLog.push(msg);
+		if (groupLog.length > 30) {
+			groupLog = groupLog.slice(groupLog.length - 30);
+		}
+		this.drawGroupPanel();
+	};
+
 	const loadGameState = (serialized) => {
 		level = serialized.level;
 		pointsNeeded = serialized.pointsNeeded;
 		levelStartTime = serialized.levelStartTime;
 		successCount = serialized.successCount;
 		failureCount = serialized.failureCount;
+		players = serialized.players;
 		board.load(serialized.board);
 	};
 
@@ -450,6 +533,9 @@ function Game() {
 		}));
 
 		gameMenu.addButton(new Button(this, 'New Group Game', (button) => {
+			const hostUsername = prompt('Please enter a username').substring(0, 30);
+
+			this.resetGroupScores();
 			button.text = 'Creating room...';
 			this.isGroup = true;
 			this.isGroupHost = true;
@@ -459,16 +545,26 @@ function Game() {
 				history.replaceState(null, 'Group Game', "?room=" + id)
 				startNewGame();
 				gameMenu.hide();
-				this.broadcastGameState();
+				this.broadcastLog(hostUsername + ' started the game');
+				players[id] = {success: 0, failure: 0, name: hostUsername};
+				this.drawGroupPanel();
 			});
 
 			hostPeer.on('connection', conn => {
-				console.log('Received connection from peer ' + conn.peer);
+				console.debug('Received connection from peer ' + conn.peer);
 
 				conn.on('data', data => {
+					const player = players[conn.peer];
+					if (!player) {
+						return;
+					}
+
 					if (data.type === 'failure') {
 						// Count the failure from our client
 						this.addFailure();
+						player.failure++;
+						this.broadcastLog(player.name + ' messed up');
+						this.drawGroupPanel();
 						// Broadcast the game state back to all clients
 						this.broadcastGameState();
 					} else if (data.type === 'success') {
@@ -488,6 +584,9 @@ function Game() {
 						// Still a set on the board we see? If so, count it.
 						if (setCards.length === 3 && board.isValidSet(setCards[0], setCards[1], setCards[2])) {
 							board.acceptClientSet(setCards);
+							player.success++;
+							this.broadcastLog(player.name + ' found a set');
+							this.drawGroupPanel();
 							this.addSuccess();
 							const won = this.checkWin();
 							if (won) {
@@ -502,18 +601,29 @@ function Game() {
 			
 				conn.on('open', () => {
 					clients.push(conn);
-					console.debug('Peer ' + conn.peer + ' opened connection to host.');
-					conn.send('Hello, I am host open');
+					const meta = conn.metadata;
+					this.broadcastLog(meta.username + ' joined the game');
+					if (!players[conn.peer]) {
+						players[conn.peer] = {success: 0, failure: 0, name: meta.username};
+					}
+					this.drawGroupPanel();
 					conn.send(serializeGameState());
 				});
 
 				conn.on('close', () => {
+					const player = players[conn.peer];
 					clients = clients.filter(clientConn => clientConn.peer === conn.peer);
-					console.debug('Peer ' + conn.peer + ' closed connection to host.');
+					this.broadcastLog(player.name + ' left the game');
+					if (players[conn.peer]) {
+						delete players[conn.peer];
+					}
+					this.drawGroupPanel();
 				});
 
 				conn.on('error', (err) => {
-					console.error('Peer ' + conn.peer + ' had error', err);
+					const player = players[conn.peer];
+					this.broadcastLog(player.name + ' had an error');
+					this.drawGroupPanel();
 				});
 			});
 
@@ -573,8 +683,12 @@ function Game() {
 			startNewGame();
 			loseMenu.hide();
 			playStartSound();
-			if (this.isGroupHost) {
-				this.broadcastGameState();
+
+			if (this.isGroup) {
+				this.resetGroupScores();
+				if (this.isGroupHost) {
+					this.broadcastGameState();
+				}
 			}
 		}));
 
@@ -583,6 +697,7 @@ function Game() {
 			startNextLevel();
 			if (this.isGroupHost) {
 				this.broadcastGameState();
+				this.broadcastLog('Starting level ' + level);
 			}
 		}));
 
@@ -594,20 +709,26 @@ function Game() {
 		groupMenu.setTitle('Joining room...');
 
 		if (room) {
+			const clientUsername = prompt('Please enter a username').substring(0, 30);
 			this.isGroup = true;
 			this.isGroupHost = false;
 			let isFirstSync = true;
 			groupMenu.show();
 			clientPeer = new Peer();
 			clientPeer.on('open', id => {
-				clientConn = clientPeer.connect(room);
+				clientConn = clientPeer.connect(room, {
+					metadata: {
+						username: clientUsername,
+					},
+				});
+
 				clientConn.on('open', () => {
 					// Send messages
 					clientConn.send('Hello, I am client peer ' + id);
 				});
 				// Receive messages
 				clientConn.on('data', data => {
-					console.log('Received from host', data);
+					console.debug('Received from host', data);
 					if (data.type === 'state') {
 						if (isFirstSync) {
 							startNewGame();
@@ -638,12 +759,15 @@ function Game() {
 						}
 
 						loadGameState(data);
+						this.drawGroupPanel();
 
 						// Check if game is now in a win state
 						const won = this.checkWin();
 						if (won) {
 							board.clear();
 						}
+					} else if (data.type === 'log') {
+						this.appendGroupLog(data.msg);
 					}
 				});
 			});

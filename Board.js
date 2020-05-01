@@ -204,13 +204,12 @@ Board.prototype.draw = function(context, x, y, w, h) {
 
 	for (let i = this.finishedCards.length - 1; i >= 0; i--) {
 		const card = this.finishedCards[i];
-		if (card.w === 0) {
-			// Card was never drawn to begin with
-			continue;
+		// Animate card, if it was rendered already (w != 0)
+		if (card.w !== 0) {
+			card.updateMotion();
+			card.draw(context);
 		}
-		card.updateMotion();
-		this.finishedCards[i].draw(context);
-		if (!this.overlaps(this.finishedCards[i])) {
+		if (!this.overlaps(card)) {
 			this.finishedCards.splice(i, 1);
 		}
 	}
@@ -248,6 +247,7 @@ Board.prototype.click = function(x, y) {
 
 			if (game.isGroup) {
 				if (game.isGroupHost) {
+					game.incrementHostSuccess();
 					if (won) {
 						this.clear();
 					} else {
@@ -279,6 +279,7 @@ Board.prototype.click = function(x, y) {
 			if (game.isGroup) {
 				if (game.isGroupHost) {
 					// If we are the group host, broadcast our failure to everyone else
+					game.incrementHostFailure();
 					game.broadcastGameState();
 				} else {
 					// If we are a group client, report our failure to the host
