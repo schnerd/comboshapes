@@ -30,7 +30,7 @@ $str .= '})(window,document,undefined);';
 
 file_put_contents('dist.js', $str);
 
-$output = shell_exec("java -jar closure-compiler-v20190709.jar" .
+$output = shell_exec("java -jar closure-compiler-v20200406.jar" .
 	" --warning_level VERBOSE" .
 	" --jscomp_warning=reportUnknownTypes" .
 	" --jscomp_warning '*'" .
